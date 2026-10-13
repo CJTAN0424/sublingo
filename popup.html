@@ -10,11 +10,21 @@
   <main>
     <h1>SubLingo</h1>
     <p class="subtitle">日语原文 · 简体中文字幕</p>
-    <button id="toggle">开启字幕显示</button>
-    <button id="demo" class="secondary">显示示例字幕</button>
-    <button id="clear" class="text-button">清除字幕</button>
-    <p id="status" role="status">准备就绪</p>
-    <p class="note">目前是界面测试版。自动识别视频语音功能尚未接入。</p>
+
+    <label for="backendUrl">后台服务地址（部署后填写）</label>
+    <input id="backendUrl" type="url" placeholder="https://你的服务.onrender.com">
+
+    <button id="start">开始实时翻译</button>
+    <button id="stop" class="stop" disabled>停止翻译</button>
+    <p id="status" role="status">请先设置后台服务地址</p>
+
+    <details>
+      <summary>字幕显示测试</summary>
+      <button id="toggle" class="secondary">开启字幕显示</button>
+      <button id="demo" class="secondary">显示示例字幕</button>
+      <button id="clear" class="text-button">清除字幕</button>
+    </details>
+    <p class="note">使用前需要部署后台并配置 OpenAI API Key。音频会发送到你配置的后台进行识别和翻译，可能产生 API 费用。部分 DRM 受保护的视频、浏览器内部页面或无音频标签可能无法使用。</p>
   </main>
   <script src="popup.js"></script>
 </body>
