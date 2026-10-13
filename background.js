@@ -24,11 +24,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) throw new Error("请先打开普通的视频网页。Chrome 内部页面无法捕获音频。");
         const { backendUrl } = await chrome.storage.local.get({ backendUrl: "" });
         if (!backendUrl) throw new Error("请先填写后台服务地址。");
+        // Request the tab stream ID immediately after the popup's user action.
+        const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
         const health = await fetch(backendUrl + "/health");
         if (!health.ok) throw new Error("后台服务暂时无法访问。请检查服务地址或部署状态。");
         const healthData = await health.json();
         if (!healthData.speechRecognitionConfigured) throw new Error("后台尚未设置 OPENAI_API_KEY。请先在 Render 配置 API Key。");
-        const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
         await ensureOffscreen();
         activeTabId = tab.id;
         await chrome.storage.local.set({ translating: true });
