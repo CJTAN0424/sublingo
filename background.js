@@ -26,17 +26,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!tab.url || !/^https?:/.test(tab.url)) throw new Error("请先打开普通的视频网页。Chrome 内部页面无法捕获音频。");
         const { backendUrl } = await chrome.storage.local.get({ backendUrl: "" });
         if (!backendUrl) throw new Error("请先填写后台服务地址。");
-        const streamId = message.streamId;
-        if (!streamId) throw new Error("无法获取标签页音频，请重新点击开始。");
-        // Do not wait on a network request here: Chrome stream IDs are short-lived.
-        // The first transcription request will report backend/API configuration errors.
+        if (!message.streamId) throw new Error("无法获取标签页音频，请重新点击开始。");
         await ensureOffscreen();
         activeTabId = tabId;
-        await chrome.storage.local.set({ translating: true });
-        await chrome.runtime.sendMessage({ type: "SUBLINGO_OFFSCREEN_START", streamId, tabId, backendUrl }).catch(() => {});
+        await chrome.storage.local.set({ translating: true, lastStatus: "正在启动音频捕获……" });
+        await chrome.runtime.sendMessage({ type: "SUBLINGO_OFFSCREEN_START", streamId: message.streamId, tabId, backendUrl });
         await chrome.tabs.sendMessage(tabId, { type: "SUBLINGO_TOGGLE", enabled: true }).catch(() => {});
         sendResponse({ ok: true });
       } catch (error) {
+        await chrome.storage.local.set({ translating: false, lastStatus: "启动失败：" + (error.message || String(error)) });
         sendResponse({ ok: false, error: error.message || "启动失败" });
       } finally { starting = false; }
     })();
@@ -44,18 +42,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === "SUBLINGO_STOP") {
     chrome.runtime.sendMessage({ type: "SUBLINGO_OFFSCREEN_STOP" }).catch(() => {});
-    chrome.storage.local.set({ translating: false });
+    chrome.storage.local.set({ translating: false, lastStatus: "实时翻译已停止。" });
     if (activeTabId) sendStatus(activeTabId, "");
     activeTabId = null;
     sendResponse({ ok: true });
     return true;
   }
+  if (message.type === "SUBLINGO_PROGRESS" && message.text) {
+    chrome.storage.local.set({ lastStatus: message.text });
+    if (message.tabId) sendStatus(message.tabId, message.text);
+  }
   if (message.type === "SUBLINGO_AUDIO_RESULT" && message.tabId) {
-    chrome.tabs.sendMessage(message.tabId, {
-      type: "SUBLINGO_SUBTITLE",
-      japanese: message.japanese,
-      chinese: message.chinese
-    }).catch(() => {});
+    chrome.tabs.sendMessage(message.tabId, { type: "SUBLINGO_SUBTITLE", japanese: message.japanese, chinese: message.chinese }).catch(() => {});
   }
   if (message.type === "SUBLINGO_AUDIO_ERROR" && message.tabId) sendStatus(message.tabId, message.text || "音频识别暂时失败");
   if (message.type === "SUBLINGO_CAPTURE_STOPPED") {
