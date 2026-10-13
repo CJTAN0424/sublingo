@@ -20,21 +20,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (starting) { sendResponse({ ok: false, error: "正在启动，请稍候。" }); return; }
       starting = true;
       try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) throw new Error("请先打开普通的视频网页。Chrome 内部页面无法捕获音频。");
+        const tabId = message.tabId;
+        if (!tabId) throw new Error("找不到当前视频标签页。");
+        const tab = await chrome.tabs.get(tabId);
+        if (!tab.url || !/^https?:/.test(tab.url)) throw new Error("请先打开普通的视频网页。Chrome 内部页面无法捕获音频。");
         const { backendUrl } = await chrome.storage.local.get({ backendUrl: "" });
         if (!backendUrl) throw new Error("请先填写后台服务地址。");
-        // Request the tab stream ID immediately after the popup's user action.
-        const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
+        const streamId = message.streamId;
+        if (!streamId) throw new Error("无法获取标签页音频，请重新点击开始。");
         const health = await fetch(backendUrl + "/health");
         if (!health.ok) throw new Error("后台服务暂时无法访问。请检查服务地址或部署状态。");
         const healthData = await health.json();
         if (!healthData.speechRecognitionConfigured) throw new Error("后台尚未设置 OPENAI_API_KEY。请先在 Render 配置 API Key。");
         await ensureOffscreen();
-        activeTabId = tab.id;
+        activeTabId = tabId;
         await chrome.storage.local.set({ translating: true });
-        await chrome.runtime.sendMessage({ type: "SUBLINGO_OFFSCREEN_START", streamId, tabId: tab.id, backendUrl }).catch(() => {});
-        await chrome.tabs.sendMessage(tab.id, { type: "SUBLINGO_TOGGLE", enabled: true }).catch(() => {});
+        await chrome.runtime.sendMessage({ type: "SUBLINGO_OFFSCREEN_START", streamId, tabId, backendUrl }).catch(() => {});
+        await chrome.tabs.sendMessage(tabId, { type: "SUBLINGO_TOGGLE", enabled: true }).catch(() => {});
         sendResponse({ ok: true });
       } catch (error) {
         sendResponse({ ok: false, error: error.message || "启动失败" });
