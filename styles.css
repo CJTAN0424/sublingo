@@ -18,3 +18,5 @@
 }
 #sublingo-overlay .sublingo-ja { font-size: clamp(16px, 2vw, 24px); }
 #sublingo-overlay .sublingo-zh { margin-top: 3px; font-size: clamp(18px, 2.3vw, 28px); font-weight: 700; color: #ffe58a; }
+
+#sublingo-overlay .sublingo-status { margin-top: 4px; color: #ffc6a5; font-size: 12px; font-weight: 400; }
