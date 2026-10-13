@@ -32,7 +32,11 @@ startButton.addEventListener("click", async () => {
   startButton.disabled = true;
   status.textContent = "正在启动音频捕获……";
   try {
-    const response = await chrome.runtime.sendMessage({ type: "SUBLINGO_START" });
+    const tab = await activeTab();
+    if (!tab?.id) throw new Error("找不到当前视频标签页");
+    // Obtain the stream ID directly inside the user's popup click handler.
+    const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
+    const response = await chrome.runtime.sendMessage({ type: "SUBLINGO_START", streamId, tabId: tab.id });
     if (!response?.ok) throw new Error(response?.error || "无法启动");
     startButton.disabled = true;
     stopButton.disabled = false;
