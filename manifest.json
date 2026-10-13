@@ -1,16 +1,21 @@
 {
   "manifest_version": 3,
   "name": "SubLingo — Japanese to Chinese Subtitles",
-  "version": "0.1.0",
-  "description": "A starter browser extension for displaying Japanese and Simplified Chinese subtitles over video webpages.",
+  "version": "0.2.0",
+  "description": "Capture video-tab audio and translate Japanese speech into Simplified Chinese subtitles.",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "tabCapture",
+    "offscreen"
   ],
   "host_permissions": [
     "http://localhost:3000/*",
     "https://*.onrender.com/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_title": "SubLingo",
     "default_popup": "popup.html"
