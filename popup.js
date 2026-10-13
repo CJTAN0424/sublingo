@@ -2,6 +2,7 @@ const status = document.getElementById("status");
 const startButton = document.getElementById("start");
 const stopButton = document.getElementById("stop");
 const backendInput = document.getElementById("backendUrl");
+
 async function activeTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   return tabs[0];
@@ -12,11 +13,19 @@ async function sendToTab(type, extra = {}) {
   try { await chrome.tabs.sendMessage(tab.id, { type, ...extra }); return true; }
   catch { status.textContent = "此页面暂时无法运行字幕。请打开普通网页并刷新后重试。"; return false; }
 }
-chrome.storage.local.get({ backendUrl: "", translating: false }, ({ backendUrl, translating }) => {
+chrome.storage.local.get({ backendUrl: "", translating: false, lastStatus: "" }, ({ backendUrl, translating, lastStatus }) => {
   backendInput.value = backendUrl;
   startButton.disabled = translating;
   stopButton.disabled = !translating;
-  status.textContent = translating ? "实时翻译正在运行" : "填写后台地址，然后开始实时翻译";
+  status.textContent = lastStatus || (translating ? "实时翻译正在运行" : "填写后台地址，然后开始实时翻译");
+});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.lastStatus?.newValue) status.textContent = changes.lastStatus.newValue;
+  if (area === "local" && changes.translating) {
+    const running = changes.translating.newValue;
+    startButton.disabled = running;
+    stopButton.disabled = !running;
+  }
 });
 backendInput.addEventListener("change", async () => {
   const value = backendInput.value.trim().replace(/\/$/, "");
@@ -28,22 +37,21 @@ startButton.addEventListener("click", async () => {
     status.textContent = "请先填写有效的后台地址，例如 https://你的服务.onrender.com";
     return;
   }
-  await chrome.storage.local.set({ backendUrl });
+  await chrome.storage.local.set({ backendUrl, lastStatus: "正在启动音频捕获……" });
   startButton.disabled = true;
   status.textContent = "正在启动音频捕获……";
   try {
     const tab = await activeTab();
     if (!tab?.id) throw new Error("找不到当前视频标签页");
-    // Obtain the stream ID directly inside the user's popup click handler.
     const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
     const response = await chrome.runtime.sendMessage({ type: "SUBLINGO_START", streamId, tabId: tab.id });
     if (!response?.ok) throw new Error(response?.error || "无法启动");
-    startButton.disabled = true;
     stopButton.disabled = false;
-    status.textContent = "已启动。字幕通常会延迟数秒显示。";
+    status.textContent = "已启动。请让视频继续播放，稍后查看此处的诊断信息。";
   } catch (error) {
     startButton.disabled = false;
     status.textContent = error.message || "启动失败，请重试";
+    await chrome.storage.local.set({ translating: false, lastStatus: status.textContent });
   }
 });
 stopButton.addEventListener("click", async () => {
