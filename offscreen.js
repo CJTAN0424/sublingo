@@ -10,6 +10,11 @@ let busy = false;
 function report(text) {
   chrome.runtime.sendMessage({ type: "SUBLINGO_PROGRESS", tabId: activeTabId, text }).catch(() => {});
 }
+function fetchWithTimeout(url, options = {}, timeoutMs = 90000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "SUBLINGO_OFFSCREEN_START") startCapture(message);
@@ -33,8 +38,20 @@ async function startCapture(message) {
     const source = audioContext.createMediaStreamSource(mediaStream);
     source.connect(audioContext.destination);
     shouldRun = true;
-    report("音频捕获成功，正在聆听日语……");
-    captureLoop(token);
+    report("音频捕获成功，正在检查后台服务连接……");
+    // Render free services may need time to wake up after inactivity.
+    try {
+      const health = await fetchWithTimeout(backendUrl + "/health", { method: "GET", cache: "no-store" }, 65000);
+      if (!health.ok) throw new Error("后台健康检查返回 HTTP " + health.status);
+      const info = await health.json();
+      if (!info.ok) throw new Error("后台健康检查未通过");
+      report("后台连接成功，正在聆听日语……");
+    } catch (error) {
+      const reason = error.name === "AbortError" ? "连接后台超时" : (error.message || String(error));
+      report("后台连接检查失败：" + reason + "。请确认后台地址正确，且 Render 服务已启动。");
+      // Continue trying audio requests; the diagnostic below will show if the API is unreachable.
+    }
+    if (shouldRun && token === loopToken) captureLoop(token);
   } catch (error) {
     shouldRun = false;
     report("音频捕获失败：" + (error.message || String(error)));
@@ -85,9 +102,26 @@ async function sendSegment(blob, token) {
   try {
     const form = new FormData();
     form.append("audio", blob, "segment.webm");
-    const response = await fetch(backendUrl + "/api/transcribe", { method: "POST", body: form });
+    let response;
+    let lastError;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        response = await fetchWithTimeout(backendUrl + "/api/transcribe", { method: "POST", body: form }, 90000);
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2 && shouldRun && token === loopToken) {
+          report("后台连接中断，正在重试（" + attempt + "/1）……");
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+    }
+    if (!response) {
+      if (lastError?.name === "AbortError") throw new Error("连接后台超时。请先在浏览器打开后台 /health 检查服务是否正常。");
+      throw new Error("无法连接后台（Failed to fetch）。请检查后台地址、Render 服务状态和网络连接。");
+    }
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "后台返回错误 " + response.status);
+    if (!response.ok) throw new Error(data.error || "后台返回错误 HTTP " + response.status);
     if (data.japanese && data.chinese && token === loopToken) {
       report("翻译成功，字幕已显示。");
       chrome.runtime.sendMessage({ type: "SUBLINGO_AUDIO_RESULT", tabId: activeTabId, japanese: data.japanese, chinese: data.chinese }).catch(() => {});
