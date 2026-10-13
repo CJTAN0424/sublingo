@@ -1,0 +1,20 @@
+#sublingo-overlay {
+  position: fixed;
+  z-index: 2147483647;
+  left: 50%;
+  bottom: 9%;
+  transform: translateX(-50%);
+  width: min(90vw, 1000px);
+  box-sizing: border-box;
+  padding: 10px 18px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  text-align: center;
+  font-family: Arial, "Noto Sans CJK SC", sans-serif;
+  line-height: 1.5;
+  pointer-events: none;
+  text-shadow: 0 1px 2px #000;
+}
+#sublingo-overlay .sublingo-ja { font-size: clamp(16px, 2vw, 24px); }
+#sublingo-overlay .sublingo-zh { margin-top: 3px; font-size: clamp(18px, 2.3vw, 28px); font-weight: 700; color: #ffe58a; }
