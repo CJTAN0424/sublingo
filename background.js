@@ -28,10 +28,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!backendUrl) throw new Error("请先填写后台服务地址。");
         const streamId = message.streamId;
         if (!streamId) throw new Error("无法获取标签页音频，请重新点击开始。");
-        const health = await fetch(backendUrl + "/health");
-        if (!health.ok) throw new Error("后台服务暂时无法访问。请检查服务地址或部署状态。");
-        const healthData = await health.json();
-        if (!healthData.speechRecognitionConfigured) throw new Error("后台尚未设置 OPENAI_API_KEY。请先在 Render 配置 API Key。");
+        // Do not wait on a network request here: Chrome stream IDs are short-lived.
+        // The first transcription request will report backend/API configuration errors.
         await ensureOffscreen();
         activeTabId = tabId;
         await chrome.storage.local.set({ translating: true });
